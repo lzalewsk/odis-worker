@@ -3,29 +3,28 @@ import os
 import pika
 from pika import exceptions
 import time
+import toml
 import pymongo
 import json
 from datetime import datetime
 
 __author__ = 'Lukasz Zalewski / plus.pl'
 
+CONF_FILE = '/conf/conf.toml'
+
+def read_conf(CONF_FILE):
+    with open(CONF_FILE) as conffile:
+        conf = toml.loads(conffile.read())
+    return conf
+
 #GLOBALS
-#RabbitMQ
-RABBITMQ_MAIN_HOST = str(os.environ['RABBITMQ_MAIN_HOST'])
-RABBITMQ_MAIN_PORT = int(os.environ['RABBITMQ_MAIN_PORT'])
-RABBITMQ_BCK_HOST = str(os.environ['RABBITMQ_BCK_HOST'])
-RABBITMQ_BCK_PORT = int(os.environ['RABBITMQ_BCK_PORT'])
-VIRTUAL_HOST = os.environ['VIRTUAL_HOST']
-RMQ_USER = os.environ['RMQ_USER']
-RMQ_PASSWD = os.environ['RMQ_PASSWD']
-QUEUE = os.environ['QUEUE']
 #Mongo
-MONGO_RS1_HOST = os.environ['MONGO_RS1_HOST']
-MONGO_RS1_PORT = os.environ['MONGO_RS1_PORT']
-MONGO_RS2_HOST = os.environ['MONGO_RS2_HOST']
-MONGO_RS2_PORT = os.environ['MONGO_RS2_PORT']
-MONGO_USER = os.environ['MONGO_USER']
-MONGO_PASSWD = os.environ['MONGO_PASSWD']
+#MONGO_RS1_HOST = os.environ['MONGO_RS1_HOST']
+#MONGO_RS1_PORT = os.environ['MONGO_RS1_PORT']
+#MONGO_RS2_HOST = os.environ['MONGO_RS2_HOST']
+#MONGO_RS2_PORT = os.environ['MONGO_RS2_PORT']
+#MONGO_USER = os.environ['MONGO_USER']
+#MONGO_PASSWD = os.environ['MONGO_PASSWD']
 
 # metoda nasluchuje na odbir danych po otrzymaniu wysyla do bazy MongoDB
 def callback(ch, method, properties, body):
@@ -40,9 +39,21 @@ def callback(ch, method, properties, body):
         bj['RECORD_TIME'] = datetime.now()
 
         #client = pymongo.MongoClient('localhost', 27017)
-        client = pymongo.MongoClient([MONGO_RS1_HOST+':'+MONGO_RS1_PORT,MONGO_RS2_HOST+':'+MONGO_RS2_PORT])
+
+	connection_string = ''
+        for mongohost in CONF['output']['mongodb']['host']:
+		if connection_string != '' :
+			connection_string = connection_string + ','
+                connection_string = mongohost['host'] + ':' + mongohost['port']
+
+        #client = pymongo.MongoClient([MONGO_RS1_HOST+':'+MONGO_RS1_PORT,MONGO_RS2_HOST+':'+MONGO_RS2_PORT])
+	print connection_string
+        client = pymongo.MongoClient([connection_string])
         db = client.odisdb
-	db.authenticate(MONGO_USER, MONGO_PASSWD)
+	auth = CONF['output']['mongodb']
+	print auth
+	db.authenticate(auth['user'], auth['passwdi'])
+	#db.authenticate(MONGO_USER, MONGO_PASSWD)
         coll = db.records
         #recordid = coll.insert_one(json.loads(body)).inserted_id
         recordid = coll.insert_one(bj).inserted_id
@@ -65,7 +76,7 @@ def connect_to_rabbit_node(connectionParams):
             return connection
 
         except exceptions.AMQPConnectionError as e:
-            # print "Rabbitmq Connection error " + e.message
+            print "Rabbitmq Connection error " + e.message
             pass
         except:
             print "Unexpected error:"
@@ -73,36 +84,48 @@ def connect_to_rabbit_node(connectionParams):
 
 # metoda podlaczenia do RabbitMQ
 def mRabbitMQConnector():
+	global CONF
+	
+	# Setup our ssl options
+	#sslOptions = ({"ca_certs": "cacert.pem",
+	#	       "certfile": "cert.pem",
+	#	       "keyfile": "key.pem"})
+	#sslOptions = CONF['input']['rabbitmq']['ssl_options']
+        print CONF['input']['rabbitmq']['ssl_options']
+        sslOptions = CONF['input']['rabbitmq']['ssl_options']
+
         connectionParams = []
-        credentials = pika.PlainCredentials(RMQ_USER, RMQ_PASSWD)
-        main_parameters = pika.ConnectionParameters(RABBITMQ_MAIN_HOST,
-                                               RABBITMQ_MAIN_PORT,
-                                               VIRTUAL_HOST,
-                                               credentials)
-        #backup connection parameters
-        bck_parameters = pika.ConnectionParameters(RABBITMQ_BCK_HOST,
-                                               RABBITMQ_BCK_PORT,
-                                               VIRTUAL_HOST,
-                                               credentials)
-        connectionParams.append(main_parameters)
-        connectionParams.append(bck_parameters)
+       
+        rmqaccess = CONF['input']['rabbitmq']
+	credentials = pika.PlainCredentials(rmqaccess['username'], rmqaccess['password'])
+
+	for host in CONF['input']['rabbitmq']['host']:
+		connection_x = pika.ConnectionParameters(host['url']
+						 ,host['port']
+						 ,rmqaccess['vhost']
+						 ,credentials
+						 ,ssl = rmqaccess['ssl']
+						 ,ssl_options = sslOptions)
+		connectionParams.append(connection_x)
 
         #connection = pika.BlockingConnection(main_parameters)
         connection = connect_to_rabbit_node(connectionParams)
 
         channel = connection.channel()
 
-        channel.queue_declare(queue=QUEUE, durable=True)
+        channel.queue_declare(queue=rmqaccess['queue_name'], durable=True)
         print(' [*] Waiting for messages. To exit press CTRL+C')
 
 
         channel.basic_qos(prefetch_count=1)
         channel.basic_consume(callback,
-                              queue=QUEUE)
+                              queue=rmqaccess['queue_name'])
 
         channel.start_consuming()
         print(' [*] BYE')
 
 if __name__ == '__main__':
+	global CONF
+	CONF = read_conf(CONF_FILE)
 	mRabbitMQConnector()
 	print "GO"
