@@ -1,0 +1,41 @@
+# This is a TOML document.
+
+title = "TOML Example"
+
+[client]
+    name = "ODIS"
+
+## rabbit HA-mode queue config
+[input.rabbitmq]
+    vhost = "<virtualhost>"
+    queue_name = "<some_queue>"
+    username = "<user>"
+    password  = "<password>"
+    ssl = true
+    [input.rabbitmq.ssl_options]
+	"ca_certs" = "/ssl/xxx.pem"
+	"certfile" = "/ssl/yyy.pem"
+	"keyfile" =  "/ssl/zzz.pem"
+
+    [[input.rabbitmq.host]]
+        url = "<some_host1>"
+        port = 5671
+
+    [[input.rabbitmq.host]]
+        url = "<some_host2>"
+        port = 5671
+
+## HA-mode Output to MongoDB
+[output.mongodb]
+     user = "<user>"
+     passwd = "<password>"
+     database = "<database>"
+     collection = "<collection>"
+
+     [[output.mongodb.host]]
+          host = "host1"
+          port = "27017"
+
+     [[output.mongodb.host]]
+          host = "host2"
+          port = "27017"

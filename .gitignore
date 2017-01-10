@@ -1,3 +1,5 @@
-conf/*
-ssl/*
+conf/odis.toml
+!conf/
+ssl/*.pem
+!ssl/README.md
 pass.py
