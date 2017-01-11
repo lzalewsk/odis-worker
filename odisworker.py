@@ -52,7 +52,7 @@ def callback(ch, method, properties, body):
         db = client.odisdb
 	auth = CONF['output']['mongodb']
 	print auth
-	db.authenticate(auth['user'], auth['passwdi'])
+	db.authenticate(auth['user'], auth['passwd'])
 	#db.authenticate(MONGO_USER, MONGO_PASSWD)
         coll = db.records
         #recordid = coll.insert_one(json.loads(body)).inserted_id
