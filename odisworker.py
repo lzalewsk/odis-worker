@@ -48,7 +48,11 @@ def callback(ch, method, properties, body):
 
         #client = pymongo.MongoClient([MONGO_RS1_HOST+':'+MONGO_RS1_PORT,MONGO_RS2_HOST+':'+MONGO_RS2_PORT])
 	print connection_string
-        client = pymongo.MongoClient([connection_string])
+        if('replicaset' in CONF['output']['mongodb']):
+            print 'replicaset: ', CONF['output']['mongodb']['replicaset']
+            client = pymongo.MongoClient([connection_string], replicaset=CONF['output']['mongodb']['replicaset'])
+        else:
+            client = pymongo.MongoClient([connection_string])
         db = client.odisdb
 	auth = CONF['output']['mongodb']
 	print auth

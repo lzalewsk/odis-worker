@@ -29,6 +29,7 @@ title = "TOML Example"
 [output.mongodb]
      user = "<user>"
      passwd = "<password>"
+     replicaset = "<replicaset name>"
      database = "<database>"
      collection = "<collection>"
 
